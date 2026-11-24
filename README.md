@@ -1,5 +1,4 @@
 
-
 # SelecciónIA
 Plataforma de selección de personal por suscripción. Web estática (GitHub Pages) + Google Sheets/Apps Script como base de datos.
 
