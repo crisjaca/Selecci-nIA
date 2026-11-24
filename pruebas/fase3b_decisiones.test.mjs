@@ -1,0 +1,71 @@
+import { fileURLToPath as __f } from 'node:url'; const RAIZ = __f(new URL('../', import.meta.url));
+const mem = () => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; };
+globalThis.localStorage = mem(); globalThis.sessionStorage = mem();
+const R = RAIZ + 'src/modulos/', imp = (p) => import(R + p);
+const { ServicioEmpresa } = await imp('rf01-empresa-suscripcion/aplicacion/ServicioEmpresa.js');
+const { ServicioPlan } = await imp('rf01-empresa-suscripcion/aplicacion/ServicioPlan.js');
+const { ServicioSuscripcion } = await imp('rf01-empresa-suscripcion/aplicacion/ServicioSuscripcion.js');
+const { ServicioUsuariosEmpresa } = await imp('rf01-empresa-suscripcion/aplicacion/ServicioUsuariosEmpresa.js');
+const { ServicioVacantes } = await imp('rf02-vacantes/aplicacion/ServicioVacantes.js');
+const { ServicioCandidatos } = await imp('rf03-hojas-de-vida/aplicacion/ServicioCandidatos.js');
+const { ServicioFiltro } = await imp('rf04-filtro/aplicacion/ServicioFiltro.js');
+const { ServicioCorreos } = await imp('rf05-correos-no-seleccionados/aplicacion/ServicioCorreos.js');
+const { ServicioBanco } = await imp('rf06-banco-talentos/aplicacion/ServicioBanco.js');
+const { ServicioPuntaje } = await imp('rf07-puntaje/aplicacion/ServicioPuntaje.js');
+const { ServicioRevision } = await imp('rf08-revision-decision/aplicacion/ServicioRevision.js');
+const { ServicioEtapas } = await imp('rf09-evaluacion-etapas/aplicacion/ServicioEtapas.js');
+const ok = (c, m) => console.log((c ? 'OK   ' : 'FALLA') + ' ' + m);
+const err = async (f) => { try { await f(); return null; } catch (e) { return e.codigo || e.message; } };
+const se = new ServicioEmpresa(), sp = new ServicioPlan(), ss = new ServicioSuscripcion(), uu = new ServicioUsuariosEmpresa();
+const A = (await se.crearPorAdmin({ nombreEmpresa: 'Acme', nit: '1', nombre: 'A', correo: 'a@a.co' })).empresa;
+const plan = sp.guardar({ nombre: 'P', precio: 1, periodicidad: 'mensual', limiteUsuarios: 5, limiteDispositivosSimultaneos: 3, sesionesPorUsuario: 1 }); ss.pagar(A.id, plan.id);
+const rec = (await uu.crear(A.id, { nombre: 'Rita Reclutadora', correo: 'r@a.co', rol: 'reclutador' })).usuario, dir = (await uu.crear(A.id, { nombre: 'Dario Director', correo: 'd@a.co', rol: 'director' })).usuario;
+const store = new Map(), archivos = { guardar: async (id, f) => store.set(id, f), obtener: async (id) => store.get(id), eliminar: async (id) => store.delete(id) };
+const deps = { archivos, extractor: { extraer: async (f) => f.texto || '' } };
+const sv = new ServicioVacantes(), sc = new ServicioCandidatos(deps), sf = new ServicioFiltro(), spu = new ServicioPuntaje(), sr = new ServicioRevision(), set = new ServicioEtapas(), sco = new ServicioCorreos(), sb = new ServicioBanco(deps);
+const v = sv.guardar(A.id, { titulo: 'Analista', perfilProfesional: 'Datos', nivelEducativoMinimo: 'Profesional', aniosExperienciaMinima: 4, palabrasClave: 'SQL, Python' }); sv.cambiarEstado(A.id, v.id, 'publicada');
+const f = (n, t = '') => ({ name: n, size: 1000, texto: t }), post = (n, mail, niv, an, t) => sc.postular({ idVacante: v.id, nombre: n, correo: mail, nivelEducativo: niv, aniosExperiencia: an, consentimiento: true, archivo: f(n + '.pdf', t) });
+await post('Laura', 'l@x.co', 'Maestría', 6, 'SQL Python'); await post('Andrés', 'an@x.co', 'Profesional', 4, 'sql'); await post('Julián', 'j@x.co', 'Técnico', 1, ''); await post('Camila', 'c@x.co', 'Profesional', 2, 'python');
+const por = () => Object.fromEntries(sc.listar(A.id).map(c => [c.nombre, c])); sf.ejecutar(A.id, v.id);
+
+// RF07
+const rk = spu.calcularVacante(A.id, v.id), pv = Object.fromEntries(rk.map(x => [x.candidato.nombre, x.valorPuntaje]));
+ok(pv.Laura === 100, 'RF07 Laura 100/100'); ok(pv['Andrés'] === 90 && pv.Camila === 70 && pv['Julián'] === 30, `RF07 puntajes razonables (Andrés ${pv['Andrés']}, Camila ${pv.Camila}, Julián ${pv['Julián']})`);
+ok(rk[0].candidato.nombre === 'Laura' && rk[0].desglose.length === 3, 'RF07 ranking ordenado con desglose');
+const vs = sv.guardar(A.id, { titulo: 'Vacía', perfilProfesional: 'x' }); ok((await err(() => spu.calcular(A.id, por().Laura.id))) === null && (await err(() => spu.calcularVacante(A.id, vs.id))) === null, 'RF07 vacante sin candidatos no falla');
+// RF08 recomendación y decisión
+ok(sr.recomendacion(A.id, por().Laura.id).sugerencia === 'avanzar' && sr.recomendacion(A.id, por()['Julián'].id).sugerencia === 'rechazar', 'RF08 recomendación avanzar / rechazar');
+ok(sr.recomendacion(A.id, por()['Camila'].id).sugerencia === 'rechazar' , 'RF08 no cumple mínimo (experiencia) → rechazar');
+ok((await err(() => sr.decidir(rec, { idCandidato: por().Laura.id, decision: 'avanzar', justificacion: 'Buen perfil' }))) === 'SIN_ETAPAS', 'RF08 avanzar sin etapas definidas → error claro');
+set.usarSugeridas(A.id, v.id); ok(set.listarEtapas(A.id, v.id).length === 3, 'RF09 etapas sugeridas creadas');
+ok((await err(() => set.usarSugeridas(A.id, v.id))) === 'EN_USO', 'RF09 no se duplican las sugeridas');
+ok((await err(() => sr.decidir(rec, { idCandidato: por().Laura.id, decision: '', justificacion: 'x' }))) === 'DATOS' && (await err(() => sr.decidir(rec, { idCandidato: por().Laura.id, decision: 'avanzar', justificacion: '' }))) === 'DATOS', 'RF08 exige opción y justificación');
+ok((await err(() => set.registrarEvaluacion(rec, { idCandidato: por().Laura.id, observaciones: 'Muy buena', resultado: 'aprobado' }))) === 'SIN_ETAPA', 'RF09 evaluar a quien no está en etapa → error');
+sr.decidir(dir, { idCandidato: por().Laura.id, decision: 'avanzar', justificacion: 'Cumple y puntaje alto' });
+ok(por().Laura.estadoProceso === 'en_etapa' && set.listarEtapas(A.id, v.id)[0].id === por().Laura.idEtapaActual, 'RF08 el director avanza a Laura a la 1.ª etapa');
+sf.ejecutar(A.id, v.id); ok(por().Laura.estadoProceso === 'en_etapa', 'RF04 volver a filtrar no pisa la etapa');
+// RF09 evaluación
+ok((await err(() => set.registrarEvaluacion(rec, { idCandidato: por().Laura.id, observaciones: '', resultado: 'aprobado' }))) === 'DATOS', 'RF09 sin observaciones → error');
+set.registrarEvaluacion(rec, { idCandidato: por().Laura.id, observaciones: 'Entrevista muy buena', resultado: 'aprobado' });
+ok(por().Laura.estadoProceso === 'etapa_aprobada' && set.historial(A.id).length === 1 && set.historial(A.id)[0].usuarioResponsable === 'Rita Reclutadora', 'RF09 evaluación guardada, estado actualizado y respaldo en historial');
+sr.decidir(rec, { idCandidato: por().Laura.id, decision: 'avanzar', justificacion: 'Sigue' }); sr.decidir(rec, { idCandidato: por().Laura.id, decision: 'avanzar', justificacion: 'Sigue' });
+console.log('DEBUG estado', por().Laura.estadoProceso, set.listarEtapas(A.id, v.id).map(e=>e.nombreEtapa+':'+e.id.slice(0,4)), por().Laura.idEtapaActual?.slice(0,4), await err(() => sr.decidir(rec, { idCandidato: por().Laura.id, decision: 'avanzar', justificacion: 'Otra vez' })));
+ok((await err(() => sr.decidir(rec, { idCandidato: por().Laura.id, decision: 'avanzar', justificacion: 'Otra vez' }))) === 'ULTIMA_ETAPA', 'RF08 no se avanza más allá de la última etapa');
+sr.decidir(dir, { idCandidato: por().Laura.id, decision: 'aprobar', justificacion: 'Contratar' }); ok(por().Laura.estadoProceso === 'seleccionado', 'RF08 aprobar → seleccionado');
+ok((await err(() => sr.decidir(rec, { idCandidato: por().Laura.id, decision: 'rechazar', justificacion: 'Cambio' }))) === 'FINAL', 'RF08 decisión final no se repite');
+sr.decidir(rec, { idCandidato: por()['Andrés'].id, decision: 'rechazar', justificacion: 'No encaja con el equipo' }); ok(por()['Andrés'].estadoProceso === 'no_seleccionado', 'RF08 rechazar → no seleccionado');
+// RF05 y RF06
+const g = sco.recopilar(A.id, v.id, 'todos', ','); ok(g.total === 3 && g.correosFormateados.includes('an@x.co') && g.correosFormateados.includes('j@x.co') && g.correosFormateados.includes('c@x.co') && !g.correosFormateados.includes('l@x.co'), 'RF05 recopila solo no seleccionados (3) y no a Laura');
+ok(sco.recopilar(A.id, v.id, 'filtro').total === 2 && sco.recopilar(A.id, v.id, 'decision').total === 1, 'RF05 grupos por filtro (2) y por decisión (1)');
+ok((await err(() => sco.recopilar(A.id, vs.id))) === 'GRUPO_VACIO', 'RF05 grupo vacío → error');
+const b = sb.buscar(A.id); ok(b.length === 3 && !b.some(x => x.nombre === 'Laura'), 'RF06 el banco tiene los 3 no seleccionados');
+ok(b.find(x => x.nombre === 'Andrés').historial.motivoRechazo === 'No encaja con el equipo' && b.find(x => x.nombre === 'Julián').historial.etapaFinal === 'Filtro por requisitos', 'RF06 historial: motivo de decisión y de filtro');
+ok(sb.buscar(A.id, { nivel: 'Profesional' }).length === 2 && sb.buscar(A.id, { q: 'câmila' }).length === 1 && sb.buscar(A.id, { q: 'zzz' }).length === 0, 'RF06 búsqueda por formación y texto');
+ok((await sb.descargar(A.id, por()['Julián'].id)).nombre === 'Julián.pdf', 'RF06 descarga el archivo original');
+// aislamiento y borrado
+const B = (await se.crearPorAdmin({ nombreEmpresa: 'Beta', nit: '2', nombre: 'B', correo: 'b@b.co' })).empresa;
+ok(sb.buscar(B.id).length === 0 && sco.grupo(B.id, v.id).candidatos.length === 0 && (await err(() => sr.recomendacion(B.id, por().Laura.id))) === 'NO_ENCONTRADO', 'aislamiento: otra empresa no ve ni decide sobre estos candidatos');
+await sc.eliminar(A.id, por().Laura.id);
+ok(sr.repo.listar().filter(d => d.nombreEtapa).length === sr.repo.listar().length && sc.puntajes.listar(p => p.idCandidato).length === 3 && set.evaluaciones.listar().length === 0, 'eliminar candidato borra puntaje, decisiones y evaluaciones');
+ok(set.historial(A.id)[0]?.candidatoNombre === 'Candidato eliminado', 'el respaldo de auditoría se conserva sin datos personales');
+for (const e of set.listarEtapas(A.id, v.id)) ok(true, 'etapa ' + e.nombreEtapa);

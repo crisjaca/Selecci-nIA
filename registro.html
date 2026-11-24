@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crear cuenta de empresa · SelecciónIA</title><link rel="stylesheet" href="assets/css/estilos.css"></head><body>
+<main class="auth"><div class="caja ancha"><a class="marca" href="index.html">SelecciónIA</a>
+<h1>Crear cuenta de empresa</h1><p class="sub">Con esta cuenta eliges tu plan, pagas la suscripción y creas a tus reclutadores.</p>
+<div id="msg" class="alerta" hidden role="alert"></div>
+<form id="form"><label for="nombreEmpresa">Nombre de la empresa</label><input id="nombreEmpresa" name="nombreEmpresa" type="text" required>
+<label for="nit">NIT</label><input id="nit" name="nit" type="text" required>
+<label for="nombre">Tu nombre</label><input id="nombre" name="nombre" type="text" autocomplete="name" required>
+<label for="correo">Correo</label><input id="correo" name="correo" type="email" autocomplete="username" required>
+<label for="clave">Contraseña (mínimo 8 caracteres)</label><input id="clave" name="clave" type="password" autocomplete="new-password" required>
+<label for="confirmar">Repite la contraseña</label><input id="confirmar" name="confirmar" type="password" autocomplete="new-password" required>
+<label class="chk"><input type="checkbox" name="acepta" id="acepta"> Acepto los términos de la suscripción y la política de tratamiento de datos personales.</label>
+<button class="btn" type="submit">Crear cuenta</button></form>
+<p class="pie">¿Ya tienes cuenta? <a href="login.html">Inicia sesión</a></p></div></main>
+<script type="module" src="src/modulos/rf01-empresa-suscripcion/presentacion/registro.js"></script></body></html>

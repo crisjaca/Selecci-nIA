@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cambiar contraseña · SelecciónIA</title><link rel="stylesheet" href="assets/css/estilos.css"></head><body>
+<main class="auth"><div class="caja"><a class="marca" href="index.html">SelecciónIA</a>
+<h1>Cambiar contraseña</h1><div id="msg" class="alerta" hidden role="alert"></div>
+<form id="form"><label for="actual">Contraseña actual</label><input id="actual" name="actual" type="password" autocomplete="current-password" required>
+<label for="nueva">Contraseña nueva (mínimo 8 caracteres)</label><input id="nueva" name="nueva" type="password" autocomplete="new-password" required>
+<label for="confirmar">Repite la contraseña nueva</label><input id="confirmar" name="confirmar" type="password" autocomplete="new-password" required>
+<button class="btn" type="submit">Guardar contraseña</button></form></div></main>
+<script type="module" src="src/modulos/rf11-autenticacion/presentacion/cambiarClave.js"></script></body></html>
